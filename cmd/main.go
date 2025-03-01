@@ -33,6 +33,7 @@ func main() {
 
 	// Register authentication routes
 	routes.AuthRoutes(router)
+	routes.StatusRoutes(router)
 
 	// Graceful shutdown handling
 	quit := make(chan os.Signal, 1)

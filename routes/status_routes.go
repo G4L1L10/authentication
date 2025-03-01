@@ -21,7 +21,7 @@ func StatusRoutes(router *gin.Engine) {
 
 		// Return JSON response
 		c.JSON(http.StatusOK, gin.H{
-			"service":  "wedding-auth",
+			"service":  "Authentication",
 			"status":   status,
 			"database": dbStatus,
 		})
