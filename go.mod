@@ -11,6 +11,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/crypto v0.35.0
+	golang.org/x/time v0.10.0
 )
 
 require (

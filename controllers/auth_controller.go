@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/g4l1l10/authentication/middlewares"
 	"github.com/g4l1l10/authentication/repository"
 	"github.com/g4l1l10/authentication/services"
 	"github.com/g4l1l10/authentication/utils"
@@ -54,12 +55,23 @@ func Login(c *gin.Context) {
 		return
 	}
 
+	// Check if user is temporarily locked out
+	if middlewares.IsUserLocked(input.Email) {
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "Too many failed attempts. Please try again in 1 minute."})
+		return
+	}
+
 	// Authenticate user
 	token, err := services.LoginUser(input.Email, input.Password)
 	if err != nil {
+		// Track failed login attempt
+		middlewares.TrackFailedLogin(input.Email)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
 	}
+
+	// Successful login → Reset failed login counter
+	middlewares.ResetFailedLogin(input.Email)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Login successful", "token": token})
 }
@@ -90,7 +102,6 @@ func GetUser(c *gin.Context) {
 	})
 }
 
-// UpdateUser updates user details (protected route)
 // UpdateUser updates user details (protected route)
 func UpdateUser(c *gin.Context) {
 	userID, err := uuid.Parse(c.Param("id"))
