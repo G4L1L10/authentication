@@ -2,28 +2,46 @@ package routes
 
 import (
 	"net/http"
+	"sync/atomic"
+	"time"
 
+	"github.com/g4l1l10/authentication/config"
 	"github.com/g4l1l10/authentication/db"
-
 	"github.com/gin-gonic/gin"
 )
 
-// StatusRoutes sets up the health check route
+// Track service start time
+var (
+	startTime = time.Now()
+	healthy   atomic.Bool // Atomic boolean to store health status
+)
+
 func StatusRoutes(router *gin.Engine) {
 	router.GET("/status", func(c *gin.Context) {
-		status := "healthy"
+		// Check database health
 		dbStatus := "connected"
-
-		// Check database connectivity
 		if err := db.DB.Ping(); err != nil {
 			dbStatus = "disconnected"
 		}
 
-		// Return JSON response
-		c.JSON(http.StatusOK, gin.H{
-			"service":  "Authentication",
-			"status":   status,
+		// Calculate uptime since the service started
+		uptime := time.Since(startTime).String()
+
+		// Determine overall service health
+		serviceStatus := "healthy"
+		if dbStatus == "disconnected" {
+			serviceStatus = "unhealthy"
+			healthy.Store(false) // Mark service as unhealthy
+		} else {
+			healthy.Store(true) // Mark service as healthy
+		}
+
+		// Return a dynamic JSON response
+		c.IndentedJSON(http.StatusOK, gin.H{
+			"service":  config.Config.ServiceName, // Read from config
+			"status":   serviceStatus,
 			"database": dbStatus,
+			"uptime":   uptime,
 		})
 	})
 }
