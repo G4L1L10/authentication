@@ -15,23 +15,41 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-// GenerateToken creates a JWT token for the given user ID.
-func GenerateToken(userID uuid.UUID) (string, error) {
+// GenerateTokens creates an **access token** (15 min) and a **refresh token** (7 days).
+func GenerateTokens(userID uuid.UUID) (string, string, error) {
 	secretKey := []byte(os.Getenv("JWT_SECRET"))
 
-	// Short-lived token (15 minutes)
-	expirationTime := time.Now().Add(15 * time.Minute)
-
-	claims := &Claims{
+	// Short-lived Access Token (15 min)
+	accessTokenExpiration := time.Now().Add(15 * time.Minute)
+	accessClaims := &Claims{
 		UserID: userID,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(expirationTime), // Expiration time
-			IssuedAt:  jwt.NewNumericDate(time.Now()),     // Issued at time
+			ExpiresAt: jwt.NewNumericDate(accessTokenExpiration),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
+	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
+	accessTokenString, err := accessToken.SignedString(secretKey)
+	if err != nil {
+		return "", "", err
+	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims) // Uses HS256
-	return token.SignedString(secretKey)
+	// Long-lived Refresh Token (7 days)
+	refreshTokenExpiration := time.Now().Add(7 * 24 * time.Hour)
+	refreshClaims := &Claims{
+		UserID: userID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(refreshTokenExpiration),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
+	refreshTokenString, err := refreshToken.SignedString(secretKey)
+	if err != nil {
+		return "", "", err
+	}
+
+	return accessTokenString, refreshTokenString, nil
 }
 
 // ValidateToken verifies the JWT token and extracts user ID.

@@ -8,24 +8,28 @@ import (
 
 // User represents the admin user in the authentication system
 type User struct {
-	ID        uuid.UUID  `json:"id"`                   // Unique User ID (UUID)
-	Email     string     `json:"email"`                // Admin Email (Unique)
-	Password  string     `json:"password"`             // Hashed Password
-	CreatedAt time.Time  `json:"created_at"`           // Timestamp when the user was created
-	UpdatedAt time.Time  `json:"updated_at"`           // Timestamp when the user was last updated
-	DeletedAt *time.Time `json:"deleted_at,omitempty"` // Nullable field for soft deletes
+	ID                 uuid.UUID  `json:"id"`                      // Unique User ID (UUID)
+	Email              string     `json:"email"`                   // Admin Email (Unique)
+	Password           string     `json:"password"`                // Hashed Password
+	RefreshToken       string     `json:"refresh_token,omitempty"` // Stores latest refresh token
+	CreatedAt          time.Time  `json:"created_at"`              // Timestamp when the user was created
+	UpdatedAt          time.Time  `json:"updated_at"`              // Timestamp when the user was last updated
+	DeletedAt          *time.Time `json:"deleted_at,omitempty"`    // Nullable field for soft deletes
+	LastPasswordChange time.Time  `json:"last_password_change"`    // Track last password update
 }
 
 // NewUser creates a new user instance with a generated UUID and timestamps
 func NewUser(email, hashedPassword string) *User {
 	currentTime := time.Now()
 	return &User{
-		ID:        uuid.New(), // Generate new UUID
-		Email:     email,
-		Password:  hashedPassword,
-		CreatedAt: currentTime, // Set creation timestamp
-		UpdatedAt: currentTime, // Initially set updatedAt to the same value as createdAt
-		DeletedAt: nil,         // Ensure the user is active by default
+		ID:                 uuid.New(),
+		Email:              email,
+		Password:           hashedPassword,
+		RefreshToken:       "", // Will be updated after login
+		CreatedAt:          currentTime,
+		UpdatedAt:          currentTime,
+		DeletedAt:          nil,
+		LastPasswordChange: currentTime,
 	}
 }
 
@@ -34,6 +38,12 @@ func (u *User) UpdateUser(email, hashedPassword string) {
 	u.Email = email
 	u.Password = hashedPassword
 	u.UpdatedAt = time.Now() // Update timestamp
+}
+
+// UpdateRefreshToken updates the refresh token for the user
+func (u *User) UpdateRefreshToken(refreshToken string) {
+	u.RefreshToken = refreshToken
+	u.UpdatedAt = time.Now() // Track token change
 }
 
 // SoftDelete marks a user as deleted by setting DeletedAt timestamp

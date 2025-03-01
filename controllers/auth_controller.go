@@ -75,7 +75,7 @@ func Login(c *gin.Context) {
 	}
 
 	// Authenticate user
-	token, err := services.LoginUser(input.Email, input.Password)
+	accessToken, refreshToken, err := services.LoginUser(input.Email, input.Password)
 	if err != nil {
 		// Track failed login attempt
 		middlewares.TrackFailedLogin(input.Email)
@@ -86,7 +86,42 @@ func Login(c *gin.Context) {
 	// Successful login → Reset failed login counter
 	middlewares.ResetFailedLogin(input.Email)
 
-	c.JSON(http.StatusOK, gin.H{"message": "Login successful", "token": token})
+	// Return access and refresh tokens
+	c.JSON(http.StatusOK, gin.H{
+		"message":       "Login successful",
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
+	})
+}
+
+// RefreshToken generates a new access token using a valid refresh token.
+func RefreshToken(c *gin.Context) {
+	var input struct {
+		RefreshToken string `json:"refresh_token" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate refresh token
+	claims, err := utils.ValidateToken(input.RefreshToken)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired refresh token"})
+		return
+	}
+
+	// Generate a new access token
+	accessToken, _, err := utils.GenerateTokens(claims.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not generate new token"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"access_token": accessToken,
+	})
 }
 
 // GetUser fetches user details (protected route)

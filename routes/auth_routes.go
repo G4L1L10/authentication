@@ -3,7 +3,6 @@ package routes
 import (
 	"github.com/g4l1l10/authentication/controllers"
 	"github.com/g4l1l10/authentication/middlewares"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -11,8 +10,9 @@ import (
 func AuthRoutes(router *gin.Engine) {
 	auth := router.Group("/auth")
 	{
-		auth.POST("/register", controllers.Register) // Admin Registration
-		auth.POST("/login", controllers.Login)       // Admin Login
+		auth.POST("/register", controllers.Register)    // Admin Registration
+		auth.POST("/login", controllers.Login)          // Admin Login
+		auth.POST("/refresh", controllers.RefreshToken) // Refresh Access Token
 	}
 
 	// Protected routes require JWT authentication

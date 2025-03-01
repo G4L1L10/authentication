@@ -79,7 +79,7 @@ func TestLoginUser(t *testing.T) {
 	// Extract JWT Token from response
 	var response map[string]string
 	json.Unmarshal(w.Body.Bytes(), &response)
-	assert.NotEmpty(t, response["token"], "Token should not be empty")
+	assert.NotEmpty(t, response["access_token"], "Access token should not be empty")
 }
 
 // Test JWT Protected Route (Get User)
@@ -88,10 +88,10 @@ func TestProtectedGetUserRoute(t *testing.T) {
 
 	// Mock a user with a valid JWT token
 	userID := uuid.New()
-	token, _ := utils.GenerateToken(userID)
+	accessToken, _, _ := utils.GenerateTokens(userID) // Use the updated function
 
 	req, _ := http.NewRequest("GET", "/users/"+userID.String(), nil)
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
