@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/g4l1l10/authentication/middlewares"
@@ -17,11 +18,20 @@ import (
 func Register(c *gin.Context) {
 	var input struct {
 		Email    string `json:"email" binding:"required,email"`
-		Password string `json:"password" binding:"required,min=6"`
+		Password string `json:"password" binding:"required"`
 	}
 
 	// Validate input
 	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Normalize email (convert to lowercase)
+	input.Email = strings.ToLower(input.Email)
+
+	// Validate password strength and check against common passwords
+	if err := utils.ValidatePassword(input.Password); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -54,6 +64,9 @@ func Login(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Normalize email (convert to lowercase)
+	input.Email = strings.ToLower(input.Email)
 
 	// Check if user is temporarily locked out
 	if middlewares.IsUserLocked(input.Email) {
@@ -121,6 +134,9 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
+	// Normalize email (convert to lowercase)
+	input.Email = strings.ToLower(input.Email)
+
 	// Fetch user from DB
 	user, err := repository.GetUserByID(userID)
 	if err != nil {
@@ -135,6 +151,13 @@ func UpdateUser(c *gin.Context) {
 	// Update user details
 	user.Email = input.Email
 	if input.Password != "" {
+		// Validate new password strength
+		if err = utils.ValidatePassword(input.Password); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		// Hash the new password
 		hashedPassword, hashErr := utils.HashPassword(input.Password)
 		if hashErr != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
