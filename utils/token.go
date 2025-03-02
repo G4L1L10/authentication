@@ -15,41 +15,38 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-// GenerateTokens creates an **access token** (15 min) and a **refresh token** (7 days).
-func GenerateTokens(userID uuid.UUID) (string, string, error) {
+// GenerateAccessToken creates a short-lived JWT access token (15 min)
+func GenerateAccessToken(userID uuid.UUID) (string, error) {
 	secretKey := []byte(os.Getenv("JWT_SECRET"))
 
-	// Short-lived Access Token (15 min)
-	accessTokenExpiration := time.Now().Add(15 * time.Minute)
-	accessClaims := &Claims{
+	expirationTime := time.Now().Add(15 * time.Minute)
+	claims := &Claims{
 		UserID: userID,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(accessTokenExpiration),
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
-	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
-	accessTokenString, err := accessToken.SignedString(secretKey)
-	if err != nil {
-		return "", "", err
-	}
 
-	// Long-lived Refresh Token (7 days)
-	refreshTokenExpiration := time.Now().Add(7 * 24 * time.Hour)
-	refreshClaims := &Claims{
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(secretKey)
+}
+
+// GenerateRefreshToken creates a long-lived JWT refresh token (7 days)
+func GenerateRefreshToken(userID uuid.UUID) (string, error) {
+	secretKey := []byte(os.Getenv("JWT_SECRET"))
+
+	expirationTime := time.Now().Add(7 * 24 * time.Hour)
+	claims := &Claims{
 		UserID: userID,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(refreshTokenExpiration),
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
-	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
-	refreshTokenString, err := refreshToken.SignedString(secretKey)
-	if err != nil {
-		return "", "", err
-	}
 
-	return accessTokenString, refreshTokenString, nil
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(secretKey)
 }
 
 // ValidateToken verifies the JWT token and extracts user ID.
@@ -68,7 +65,7 @@ func ValidateToken(tokenString string) (*Claims, error) {
 		return nil, errors.New("invalid token")
 	}
 
-	// Corrected expiration check (without .Time)
+	// Corrected expiration check
 	if claims.ExpiresAt != nil && claims.ExpiresAt.Before(time.Now()) {
 		return nil, errors.New("token has expired")
 	}

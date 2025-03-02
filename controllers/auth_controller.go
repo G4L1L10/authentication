@@ -125,28 +125,37 @@ func RefreshToken(c *gin.Context) {
 		return
 	}
 
-	// Generate new access and refresh tokens
-	newAccessToken, newRefreshToken, err := utils.GenerateTokens(user.ID)
+	// Generate a new access token
+	newAccessToken, err := utils.GenerateAccessToken(user.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not generate new tokens"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not generate access token"})
 		return
 	}
 
-	// Update user's refresh token in the database
-	err = repository.UpdateRefreshToken(user.ID, newRefreshToken)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update refresh token"})
-		return
+	// **Keep the same refresh token unless it’s expired**
+	newRefreshToken := user.RefreshToken
+	if newRefreshToken == "" {
+		newRefreshToken, err = utils.GenerateRefreshToken(user.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not generate refresh token"})
+			return
+		}
+
+		// Store new refresh token in the database
+		err = repository.UpdateRefreshToken(user.ID, newRefreshToken)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update refresh token"})
+			return
+		}
 	}
 
 	// Return new tokens
 	c.JSON(http.StatusOK, gin.H{
 		"access_token":  newAccessToken,
-		"refresh_token": newRefreshToken, // ✅ Returns a new refresh token
+		"refresh_token": newRefreshToken, // ✅ Keeps the refresh token unchanged unless refreshed
 	})
 }
 
-// Logout revokes a user's refresh token (logout)
 // Logout invalidates the user's refresh token securely
 func Logout(c *gin.Context) {
 	// Extract token from Authorization header
