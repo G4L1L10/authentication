@@ -68,11 +68,33 @@ func LoginUser(email, password string) (string, string, error) {
 		return "", "", errors.New("invalid credentials")
 	}
 
-	// Generate both tokens
-	accessToken, refreshToken, err := utils.GenerateTokens(user.ID)
+	// Generate a new access token (15 min expiry)
+	accessToken, _, err := utils.GenerateTokens(user.ID)
 	if err != nil {
 		return "", "", err
 	}
 
+	// ✅ Check if user already has a refresh token in the database
+	refreshToken := user.RefreshToken
+	if refreshToken == "" {
+		// 🔹 If no refresh token exists, generate a new one
+		_, refreshToken, err = utils.GenerateTokens(user.ID)
+		if err != nil {
+			return "", "", err
+		}
+
+		// 🔹 Store the new refresh token in the database
+		err = repository.UpdateRefreshToken(user.ID, refreshToken)
+		if err != nil {
+			return "", "", err
+		}
+	}
+
+	// ✅ Return the SAME refresh token if it already exists
 	return accessToken, refreshToken, nil
+}
+
+// LogoutUser removes the refresh token from the database, effectively logging the user out.
+func LogoutUser(userID uuid.UUID) error {
+	return repository.UpdateRefreshToken(userID, "")
 }

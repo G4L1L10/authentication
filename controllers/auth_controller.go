@@ -105,23 +105,98 @@ func RefreshToken(c *gin.Context) {
 		return
 	}
 
-	// Validate refresh token
+	// Validate the refresh token
 	claims, err := utils.ValidateToken(input.RefreshToken)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired refresh token"})
 		return
 	}
 
-	// Generate a new access token
-	accessToken, _, err := utils.GenerateTokens(claims.UserID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not generate new token"})
+	// Retrieve user from DB
+	user, err := repository.GetUserByID(claims.UserID)
+	if err != nil || user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
 		return
 	}
 
+	// Ensure the refresh token matches the one stored in DB
+	if user.RefreshToken != input.RefreshToken {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh token does not match"})
+		return
+	}
+
+	// Generate new access and refresh tokens
+	newAccessToken, newRefreshToken, err := utils.GenerateTokens(user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not generate new tokens"})
+		return
+	}
+
+	// Update user's refresh token in the database
+	err = repository.UpdateRefreshToken(user.ID, newRefreshToken)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update refresh token"})
+		return
+	}
+
+	// Return new tokens
 	c.JSON(http.StatusOK, gin.H{
-		"access_token": accessToken,
+		"access_token":  newAccessToken,
+		"refresh_token": newRefreshToken, // ✅ Returns a new refresh token
 	})
+}
+
+// Logout revokes a user's refresh token (logout)
+// Logout invalidates the user's refresh token securely
+func Logout(c *gin.Context) {
+	// Extract token from Authorization header
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing Authorization header"})
+		return
+	}
+
+	// Ensure token follows "Bearer <token>" format
+	tokenParts := strings.Split(authHeader, " ")
+	if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token format"})
+		return
+	}
+	tokenString := tokenParts[1]
+
+	// Validate the token
+	claims, err := utils.ValidateToken(tokenString)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
+		return
+	}
+
+	// Retrieve user from DB
+	user, err := repository.GetUserByID(claims.UserID)
+	if err != nil || user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Check if the provided token matches the stored refresh token
+	storedRefreshToken, err := repository.GetRefreshToken(user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify session"})
+		return
+	}
+	if storedRefreshToken == "" || storedRefreshToken != tokenString {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid session or already logged out"})
+		return
+	}
+
+	// Invalidate the refresh token by setting it to an empty string
+	err = repository.UpdateRefreshToken(user.ID, "")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to logout"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Logout successful"})
 }
 
 // GetUser fetches user details (protected route)
@@ -215,17 +290,6 @@ func DeleteUser(c *gin.Context) {
 	userID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
-
-	// Fetch user before deleting
-	user, err := repository.GetUserByID(userID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch user"})
-		return
-	}
-	if user == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
 
