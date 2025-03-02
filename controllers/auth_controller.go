@@ -52,7 +52,6 @@ func Register(c *gin.Context) {
 	})
 }
 
-// Login handles user authentication and JWT token generation
 func Login(c *gin.Context) {
 	var input struct {
 		Email    string `json:"email" binding:"required,email"`
@@ -86,27 +85,34 @@ func Login(c *gin.Context) {
 	// Successful login → Reset failed login counter
 	middlewares.ResetFailedLogin(input.Email)
 
-	// Return access and refresh tokens
+	// Set Refresh Token in an HTTP-Only Secure Cookie
+	c.SetCookie(
+		"refresh_token", refreshToken,
+		7*24*60*60, // Expires in 7 days
+		"/auth",    // Only accessible under `/auth` routes
+		"",         // No specific domain (use the same as the request)
+		true,       // Secure (Only sent over HTTPS)
+		true,       // HttpOnly (Not accessible via JavaScript)
+	)
+
+	// Return only the access token
 	c.JSON(http.StatusOK, gin.H{
-		"message":       "Login successful",
-		"access_token":  accessToken,
-		"refresh_token": refreshToken,
+		"message":      "Login successful",
+		"access_token": accessToken,
 	})
 }
 
 // RefreshToken generates a new access token using a valid refresh token.
 func RefreshToken(c *gin.Context) {
-	var input struct {
-		RefreshToken string `json:"refresh_token" binding:"required"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	// Retrieve the refresh token from the secure HTTP-only cookie
+	refreshToken, err := c.Cookie("refresh_token")
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh token missing or invalid"})
 		return
 	}
 
 	// Validate the refresh token
-	claims, err := utils.ValidateToken(input.RefreshToken)
+	claims, err := utils.ValidateToken(refreshToken)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired refresh token"})
 		return
@@ -120,7 +126,7 @@ func RefreshToken(c *gin.Context) {
 	}
 
 	// Ensure the refresh token matches the one stored in DB
-	if user.RefreshToken != input.RefreshToken {
+	if user.RefreshToken != refreshToken {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh token does not match"})
 		return
 	}
@@ -147,34 +153,35 @@ func RefreshToken(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update refresh token"})
 			return
 		}
+
+		// Set a new refresh token cookie if updated
+		c.SetCookie(
+			"refresh_token", newRefreshToken,
+			7*24*60*60, // Expires in 7 days
+			"/auth",    // Only accessible under `/auth` routes
+			"",         // No specific domain (use the same as the request)
+			true,       // Secure (Only sent over HTTPS)
+			true,       // HttpOnly (Not accessible via JavaScript)
+		)
 	}
 
-	// Return new tokens
+	// Return only the new access token (refresh token remains in the cookie)
 	c.JSON(http.StatusOK, gin.H{
-		"access_token":  newAccessToken,
-		"refresh_token": newRefreshToken, // ✅ Keeps the refresh token unchanged unless refreshed
+		"access_token": newAccessToken,
 	})
 }
 
 // Logout invalidates the user's refresh token securely
 func Logout(c *gin.Context) {
-	// Extract token from Authorization header
-	authHeader := c.GetHeader("Authorization")
-	if authHeader == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing Authorization header"})
+	// Retrieve the refresh token from the secure HTTP-only cookie
+	refreshToken, err := c.Cookie("refresh_token")
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh token missing or invalid"})
 		return
 	}
 
-	// Ensure token follows "Bearer <token>" format
-	tokenParts := strings.Split(authHeader, " ")
-	if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token format"})
-		return
-	}
-	tokenString := tokenParts[1]
-
-	// Validate the token
-	claims, err := utils.ValidateToken(tokenString)
+	// Validate the refresh token
+	claims, err := utils.ValidateToken(refreshToken)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
 		return
@@ -187,23 +194,30 @@ func Logout(c *gin.Context) {
 		return
 	}
 
-	// Check if the provided token matches the stored refresh token
+	// Ensure the stored refresh token matches the one in the cookie
 	storedRefreshToken, err := repository.GetRefreshToken(user.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify session"})
 		return
 	}
-	if storedRefreshToken == "" || storedRefreshToken != tokenString {
+
+	if storedRefreshToken == "" || storedRefreshToken != refreshToken {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid session or already logged out"})
 		return
 	}
 
-	// Invalidate the refresh token by setting it to an empty string
+	// Invalidate the refresh token by removing it from the database
 	err = repository.UpdateRefreshToken(user.ID, "")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to logout"})
 		return
 	}
+
+	// Remove the refresh token cookie
+	c.SetCookie(
+		"refresh_token", "", -1, // Expire immediately
+		"/auth", "", true, true, // Secure and HttpOnly
+	)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Logout successful"})
 }
