@@ -12,8 +12,11 @@ func AuthRoutes(router *gin.Engine) {
 	{
 		auth.POST("/register", controllers.Register)    // Admin Registration
 		auth.POST("/login", controllers.Login)          // Admin Login
-		auth.POST("/logout", controllers.Logout)        // ✅ Added Logout Route
-		auth.POST("/refresh", controllers.RefreshToken) // ✅ Added Refresh Token Route
+		auth.POST("/logout", controllers.Logout)        // Logout Route
+		auth.POST("/refresh", controllers.RefreshToken) // Refresh Token Route
+
+		// ✅ Added token validation endpoint for RSVP backend
+		auth.GET("/validate", controllers.AuthValidate) // Token Validation
 	}
 
 	// Protected routes require JWT authentication

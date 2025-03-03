@@ -325,3 +325,28 @@ func DeleteUser(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
 }
+
+// AuthValidate verifies if a given token is valid
+func AuthValidate(c *gin.Context) {
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing token"})
+		return
+	}
+
+	// Extract token (Bearer <token>)
+	token := strings.TrimPrefix(authHeader, "Bearer ")
+
+	// Validate token using the existing token validation function
+	claims, err := utils.ValidateToken(token)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
+		return
+	}
+
+	// Return user ID if token is valid
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Token is valid",
+		"user_id": claims.UserID,
+	})
+}
