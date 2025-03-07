@@ -18,6 +18,8 @@ curl -X GET http://localhost:8080/users/{user_id} -H "Authorization: Bearer {you
 
 ## Delete a user from the database console
 
+DELETE FROM users WHERE id = '';
+
 ## Logouts a user
 
 curl -X POST http://localhost:8080/auth/logout -H "Authorization: Bearer <YOUR_REFRESH_TOKEN>"
