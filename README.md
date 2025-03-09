@@ -23,5 +23,3 @@ DELETE FROM users WHERE id = '';
 ## Logouts a user
 
 curl -X POST http://localhost:8080/auth/logout -H "Authorization: Bearer <YOUR_REFRESH_TOKEN>"
-
-DELETE FROM users WHERE id = '';
