@@ -10,7 +10,7 @@ import (
 // CORSMiddleware configures Cross-Origin Resource Sharing (CORS) rules
 func CORSMiddleware() gin.HandlerFunc {
 	return cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173", "https://yourfrontend.com"}, // Update as needed
+		AllowOrigins:     []string{"*"}, // ✅ Allow all origins for debugging
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Authorization", "Content-Type"},
 		ExposeHeaders:    []string{"Content-Length"},

@@ -39,8 +39,13 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 
+	// Ensure Cloud Run compatibility: Use $PORT from environment variables
+	serverPort := os.Getenv("PORT")
+	if serverPort == "" {
+		serverPort = "8080" // Default port if not set
+	}
+
 	// Start server in a goroutine
-	serverPort := config.Config.ServerPort
 	go func() {
 		log.Println("🚀 Server is running on port:", serverPort)
 		if err := router.Run(":" + serverPort); err != nil {

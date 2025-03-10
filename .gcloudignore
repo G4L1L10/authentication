@@ -1,0 +1,16 @@
+# Ignore hidden/system files
+.git/
+.gitignore
+.gcloudignore
+.DS_Store
+node_modules/
+.config/
+.idea/
+venv/
+.env
+__pycache__/
+*.log
+*.sock
+*.tmp
+*.cache
+

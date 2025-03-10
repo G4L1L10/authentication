@@ -12,22 +12,13 @@ RUN go mod tidy
 # Now copy the rest of the project files
 COPY . .
 
-# Build the Go binary from the correct entry point
-RUN go build -o authentication ./cmd
+# ✅ Fix: Ensure fully static binary (no missing libraries)
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o authentication ./cmd
 
-# Use a minimal image for production
-FROM alpine:latest
-WORKDIR /root/
-
-# Install necessary certificates for HTTPS (if needed)
-RUN apk --no-cache add ca-certificates
-
-# Copy the compiled Go binary from the builder stage
+# ✅ Switch to 'scratch' (completely minimal) for production
+FROM scratch
 COPY --from=builder /app/authentication .
 
-# Expose the authentication service port
-EXPOSE 8080
-
-# Run the authentication service
-CMD ["./authentication"]
+# Ensure binary has execution permissions
+CMD ["/authentication"]
 
